@@ -32,6 +32,13 @@ import CardActions from '@material-ui/core/CardActions';
 import CardContent from '@material-ui/core/CardContent';
 import Typography from '@material-ui/core/Typography';
 
+import Table from '@material-ui/core/Table';
+import TableBody from '@material-ui/core/TableBody';
+import TableCell from '@material-ui/core/TableCell';
+import TableHead from '@material-ui/core/TableHead';
+import TableRow from '@material-ui/core/TableRow';
+
+
 const styles = theme => ({
     root: {
         flexGrow: 1,
@@ -55,6 +62,11 @@ const styles = theme => ({
     formControl: {
         margin: theme.spacing.unit,
         minWidth: 120,
+    },
+    cardTitle: {
+        textAlign: 'left',
+        paddingLeft: 30,
+        fontSize: 18,
     }
 });
 
@@ -257,13 +269,11 @@ class MainDBCompare extends React.Component {
                         let isSameColum = that.compareTwoColumn(v, compareColumn);
                         if (isSameColum) {
                             sameColums.push(v);
-                        }
-                        else {
+                        } else {
                             var diffInfo = {newCol: v, oldCol: compareColumn};
                             diffColums.push(diffInfo);
                         }
-                    }
-                    else {
+                    } else {
 
                         newColumns.push(v);
                     }
@@ -273,6 +283,15 @@ class MainDBCompare extends React.Component {
             tableInfo.sameColums = sameColums;
             tableInfo.diffColums = diffColums;
             tableInfo.tableName = key;
+            if(tableInfo.newColumns.length>0||tableInfo.diffColums.length>0)
+            {
+                tableInfo.diffFlag = true;
+            }
+            else
+            {
+                tableInfo.diffFlag = false;
+            }
+
             tableInfos.push(tableInfo);
 
         });
@@ -311,8 +330,7 @@ class MainDBCompare extends React.Component {
             this.setState({
                 openTableName: null,
             });
-        }
-        else {
+        } else {
             this.setState({
                 openTableName: value.tableName,
             });
@@ -539,7 +557,7 @@ class MainDBCompare extends React.Component {
                                 <div key={value.tableName}>
                                     <ListItem key={value.tableName} button onClick={this.handleListClick(value)}>
                                         <ListItemIcon>
-                                            <InboxIcon/>
+                                            <InboxIcon color={value.diffFlag?'error':'action'}/>
                                         </ListItemIcon>
                                         <ListItemText inset primary={value.tableName}/>
                                         {this.state.openTableName == value.tableName ? <ExpandLess/> : <ExpandMore/>}
@@ -548,28 +566,87 @@ class MainDBCompare extends React.Component {
                                               unmountOnExit>
                                         <Card className={classes.card}>
                                             <CardContent>
-                                                <Typography className={classes.title} color="textSecondary"
+                                                <Typography className={classes.cardTitle} color="primary"
                                                             gutterBottom>
-                                                    Word of the Day
+                                                    新增列
                                                 </Typography>
-                                                <Typography variant="h5" component="h2">
-                                                    be
-
-                                                    nev
-                                                    lent
-                                                </Typography>
-                                                <Typography className={classes.pos} color="textSecondary">
-                                                    adjective
-                                                </Typography>
-                                                <Typography component="p">
-                                                    well meaning and kindly.
-                                                    <br/>
-                                                    {'"a benevolent smile"'}
-                                                </Typography>
+                                                <Table className={classes.table} style={{border:'2px solid yellow' }}>
+                                                    <TableHead>
+                                                        <TableRow>
+                                                            <TableCell>名称</TableCell>
+                                                            <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">注释</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {value.newColumns.map((nv, nvIndex) => (
+                                                            <TableRow key={nv.columnName}>
+                                                                <TableCell component="th" scope="row">
+                                                                    {nv.columnName}
+                                                                </TableCell>
+                                                                <TableCell align="right">{nv.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.columnComment}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
                                             </CardContent>
-                                            <CardActions>
-                                                <Button size="small">Learn More</Button>
-                                            </CardActions>
+                                            <CardContent>
+                                                <Typography className={classes.cardTitle} color="primary"
+                                                            gutterBottom>
+                                                    不同列
+                                                </Typography>
+                                                <Table className={classes.table} style={{border:'2px solid red' }}>
+                                                    <TableHead>
+                                                        <TableRow>
+                                                            <TableCell>名称</TableCell>
+                                                            <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">注释</TableCell>
+                                                            <TableCell align="right">原数据类型</TableCell>
+                                                            <TableCell align="right">原注释</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {value.diffColums.map((nv, nvIndex) => (
+                                                            <TableRow key={nv.newCol.columnName}>
+                                                                <TableCell component="th" scope="row">
+                                                                    {nv.newCol.columnName}
+                                                                </TableCell>
+                                                                <TableCell align="right">{nv.newCol.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.newCol.columnComment}</TableCell>
+                                                                <TableCell align="right">{nv.oldCol.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.oldCol.columnComment}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </CardContent>
+                                            <CardContent>
+                                                <Typography className={classes.cardTitle} color="primary"
+                                                            gutterBottom>
+                                                    相同列
+                                                </Typography>
+                                                <Table className={classes.table} style={{border:'2px solid green' }}>
+                                                    <TableHead>
+                                                        <TableRow>
+                                                            <TableCell>名称</TableCell>
+                                                            <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">注释</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {value.sameColums.map((nv, nvIndex) => (
+                                                            <TableRow key={nv.columnName}>
+                                                                <TableCell component="th" scope="row">
+                                                                    {nv.columnName}
+                                                                </TableCell>
+                                                                <TableCell align="right">{nv.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.columnComment}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </CardContent>
                                         </Card>
                                     </Collapse>
                                 </div>
