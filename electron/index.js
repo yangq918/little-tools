@@ -39,6 +39,20 @@ ipcMain.on('secondDataBasesDetail-m', (event, arg) => {
 
 
 
+ipcMain.on('showCreateSql-m', (event, arg) => {
+    const DB = require('./utils/DB');
+    arg.multipleStatements = true;
+    DB.init(arg);
+    DB.showCreateSql(arg,function (results) {
+        event.sender.send('showCreateSql-r', results);
+    });
+
+});
+
+
+
+
+
 
 
 

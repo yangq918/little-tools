@@ -112,7 +112,8 @@ class MainDBCompare extends React.Component {
             selectDatabase: "",
             tableInfos: [],
             showTables: false,
-            openTableName: null
+            openTableName: null,
+            exportSql:false
         };
     }
 
@@ -283,19 +284,16 @@ class MainDBCompare extends React.Component {
             tableInfo.sameColums = sameColums;
             tableInfo.diffColums = diffColums;
             tableInfo.tableName = key;
-            if(tableInfo.newColumns.length>0||tableInfo.diffColums.length>0)
-            {
+            if (tableInfo.newColumns.length > 0 || tableInfo.diffColums.length > 0) {
                 tableInfo.diffFlag = true;
             }
-            else
-            {
+            else {
                 tableInfo.diffFlag = false;
             }
 
             tableInfos.push(tableInfo);
 
         });
-        console.log(tableInfos);
         this.setState({showTables: true, tableInfos: tableInfos});
 
 
@@ -336,7 +334,135 @@ class MainDBCompare extends React.Component {
             });
         }
 
-    }
+    };
+
+    showExportSqlBtn = () => {
+
+        let tableInfos = this.state.tableInfos;
+        let showFlag = false;
+        for (let i = 0; i < tableInfos.length; i++) {
+            if (tableInfos[i].diffFlag) {
+                showFlag = true;
+                break;
+            }
+        }
+        return showFlag;
+    };
+
+    exportSql = () => {
+        var that = this;
+        let tableInfos = this.state.tableInfos;
+        let newTables = [];
+        let diffTables = [];
+        for (let i = 0; i < tableInfos.length; i++) {
+            if (tableInfos[i].newTable) {
+                newTables.push(tableInfos[i].tableName);
+            }
+            else {
+                if (tableInfos[i].diffFlag) {
+                    diffTables.push(tableInfos[i]);
+                }
+            }
+        }
+        if (newTables.length > 0) {
+
+            const {ipcRenderer} = window.electron;
+            ipcRenderer.once('showCreateSql-r', (event, arg) => {
+                that.exportAllSql(arg, diffTables);
+            });
+            var db = Object.assign({}, this.state.db1);
+            db.selectDataBase = this.state.selectDatabase;
+            db.database = this.state.selectDatabase;
+            db.newTables = newTables;
+            ipcRenderer.send('showCreateSql-m', db);
+        }
+        else {
+            that.exportAllSql(null, diffTables);
+        }
+
+    };
+
+    exportAllSql = (sqls, diffTables) => {
+        var sql = '';
+        if (null != sqls) {
+            sqls.forEach(v => {
+                sql = sql + v + ";" + "\n";
+            });
+
+        }
+
+        if (null != diffTables) {
+            diffTables.forEach(tableInfo => {
+                if (tableInfo.newColumns.length > 0) {
+                    tableInfo.newColumns.forEach(column => {
+                        let nullSql = ' NOT NULL ';
+                        if ("YES" == column.isNullAble) {
+                            nullSql = ' NULL ';
+                        }
+                        let defaultValue =  ' DEFAULT NULL ';
+                        if('auto_increment'==column.extra)
+                        {
+                            defaultValue = ' AUTO_INCREMENT ';
+                        }
+                        else if (null!=column.columnDefault&&'NULL'!=column.columnDefault)
+                        {
+                            defaultValue = ' DEFAULT ' + column.columnDefault + "  ";
+                        }
+                        let comment = "";
+                        if(null!=column.columnComment&&'NULL'!=column.columnComment)
+                        {
+                            comment = " COMMENT '"+column.columnComment+"' ";
+                        }
+                        let addSql = 'ALTER TABLE `' + tableInfo.tableName +
+                            '` ADD COLUMN `' + column.columnName + '` '
+                            + column.columnType + nullSql + defaultValue+comment;
+                        sql = sql + addSql + ";" + "\n";
+                    });
+                };
+
+                if(tableInfo.diffColums.length >0)
+                {
+                    tableInfo.diffColums.forEach(diffColum => {
+
+                        let nullSql = ' NOT NULL ';
+                        let column = diffColum.newCol;
+                        if ("YES" == column.isNullAble) {
+                            nullSql = ' NULL ';
+                        }
+                        let defaultValue =  ' DEFAULT NULL ';
+                        if('auto_increment'==column.extra)
+                        {
+                            defaultValue = ' AUTO_INCREMENT ';
+                        }
+                        else if (null!=column.columnDefault&&'NULL'!=column.columnDefault)
+                        {
+                            defaultValue = ' DEFAULT ' + column.columnDefault + "  ";
+                        }
+                        let comment = "";
+                        if(null!=column.columnComment&&'NULL'!=column.columnComment)
+                        {
+                            comment = " COMMENT '"+column.columnComment+"' ";
+                        }
+                        let addSql = 'ALTER TABLE `' + tableInfo.tableName +
+                            '` CHANGE COLUMN `' + column.columnName + '`  `' + column.columnName +'` '
+                            + column.columnType + nullSql + defaultValue+comment;
+                        sql = sql + addSql + ";" + "\n";
+
+                    }) ;
+                }
+
+
+            });
+        }
+
+        console.log(sql);
+        this.setState({exportSql:true,sqlString:sql});
+
+    };
+
+    handleExportSqlClose = () => {
+        this.setState({exportSql:false});
+    };
 
 
     render() {
@@ -548,16 +674,26 @@ class MainDBCompare extends React.Component {
                         marginTop: 5,
                         display: this.state.showTables ? 'block' : 'none'
                     }}>
+                        <div style={{
+                            textAlign: "left",
+                            paddingLeft: 30,
+                            marginTop: 10,
+                            marginBottom: 10,
+                            display: this.showExportSqlBtn() ? 'block' : 'none'
+                        }}>
+                            <Button onClick={this.exportSql} variant="contained" size="small" color="primary">
+                                导出SQL
+                            </Button>
+                        </div>
                         <List
                             component="nav"
                             subheader={<ListSubheader component="div"></ListSubheader>}
-                            className={classes.root}
                         >
                             {this.state.tableInfos.map((value, index) => (
                                 <div key={value.tableName}>
                                     <ListItem key={value.tableName} button onClick={this.handleListClick(value)}>
                                         <ListItemIcon>
-                                            <InboxIcon color={value.diffFlag?'error':'action'}/>
+                                            <InboxIcon color={value.diffFlag ? 'error' : 'action'}/>
                                         </ListItemIcon>
                                         <ListItemText inset primary={value.tableName}/>
                                         {this.state.openTableName == value.tableName ? <ExpandLess/> : <ExpandMore/>}
@@ -570,11 +706,13 @@ class MainDBCompare extends React.Component {
                                                             gutterBottom>
                                                     新增列
                                                 </Typography>
-                                                <Table className={classes.table} style={{border:'2px solid yellow' }}>
+                                                <Table className={classes.table} style={{border: '2px solid yellow'}}>
                                                     <TableHead>
                                                         <TableRow>
                                                             <TableCell>名称</TableCell>
                                                             <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">允许NULL</TableCell>
+                                                            <TableCell align="right">默认值</TableCell>
                                                             <TableCell align="right">注释</TableCell>
                                                         </TableRow>
                                                     </TableHead>
@@ -585,6 +723,8 @@ class MainDBCompare extends React.Component {
                                                                     {nv.columnName}
                                                                 </TableCell>
                                                                 <TableCell align="right">{nv.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.isNullAble}</TableCell>
+                                                                <TableCell align="right">{nv.columnDefault}</TableCell>
                                                                 <TableCell align="right">{nv.columnComment}</TableCell>
                                                             </TableRow>
                                                         ))}
@@ -596,11 +736,13 @@ class MainDBCompare extends React.Component {
                                                             gutterBottom>
                                                     不同列
                                                 </Typography>
-                                                <Table className={classes.table} style={{border:'2px solid red' }}>
+                                                <Table className={classes.table} style={{border: '2px solid red'}}>
                                                     <TableHead>
                                                         <TableRow>
                                                             <TableCell>名称</TableCell>
                                                             <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">允许NULL</TableCell>
+                                                            <TableCell align="right">默认值</TableCell>
                                                             <TableCell align="right">注释</TableCell>
                                                             <TableCell align="right">原数据类型</TableCell>
                                                             <TableCell align="right">原注释</TableCell>
@@ -612,10 +754,18 @@ class MainDBCompare extends React.Component {
                                                                 <TableCell component="th" scope="row">
                                                                     {nv.newCol.columnName}
                                                                 </TableCell>
-                                                                <TableCell align="right">{nv.newCol.columnType}</TableCell>
-                                                                <TableCell align="right">{nv.newCol.columnComment}</TableCell>
-                                                                <TableCell align="right">{nv.oldCol.columnType}</TableCell>
-                                                                <TableCell align="right">{nv.oldCol.columnComment}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.newCol.columnType}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.newCol.isNullAble}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.newCol.columnDefault}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.newCol.columnComment}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.oldCol.columnType}</TableCell>
+                                                                <TableCell
+                                                                    align="right">{nv.oldCol.columnComment}</TableCell>
                                                             </TableRow>
                                                         ))}
                                                     </TableBody>
@@ -626,11 +776,13 @@ class MainDBCompare extends React.Component {
                                                             gutterBottom>
                                                     相同列
                                                 </Typography>
-                                                <Table className={classes.table} style={{border:'2px solid green' }}>
+                                                <Table className={classes.table} style={{border: '2px solid green'}}>
                                                     <TableHead>
                                                         <TableRow>
                                                             <TableCell>名称</TableCell>
                                                             <TableCell align="right">数据类型</TableCell>
+                                                            <TableCell align="right">允许NULL</TableCell>
+                                                            <TableCell align="right">默认值</TableCell>
                                                             <TableCell align="right">注释</TableCell>
                                                         </TableRow>
                                                     </TableHead>
@@ -641,6 +793,8 @@ class MainDBCompare extends React.Component {
                                                                     {nv.columnName}
                                                                 </TableCell>
                                                                 <TableCell align="right">{nv.columnType}</TableCell>
+                                                                <TableCell align="right">{nv.isNullAble}</TableCell>
+                                                                <TableCell align="right">{nv.columnDefault}</TableCell>
                                                                 <TableCell align="right">{nv.columnComment}</TableCell>
                                                             </TableRow>
                                                         ))}
@@ -652,6 +806,32 @@ class MainDBCompare extends React.Component {
                                 </div>
                             ))}
                         </List>
+                        <Dialog
+                            open={this.state.exportSql}
+                            onClose={this.handleExportSqlClose}
+                            aria-labelledby="form-dialog-title"
+                        >
+                            <DialogTitle id="form-dialog-title">导出SQL</DialogTitle>
+                            <DialogContent >
+
+                                <TextField
+                                    style={{width:500}}
+                                    id="outlined-multiline-flexible"
+                                    label="sql"
+                                    multiline
+                                    rowsMax="20"
+                                    value={this.state.sqlString}
+                                    className={classes.textField}
+                                    margin="normal"
+                                    variant="outlined"
+                                />
+                            </DialogContent>
+                            <DialogActions>
+                                <Button onClick={this.handleExportSqlClose} color="primary">
+                                    关闭
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
 
                     </div>
                 </Grid>
